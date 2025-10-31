@@ -1,7 +1,7 @@
 {
   "cardpool": {
     "objects": [
-      { "label": "Handddschuhe", "code": "q" },
+      { "label": "Handschuhe", "code": "q" },
       { "label": "Tupfer", "code": "w" },
       { "label": "Hände", "code": "k" },
       { "label": "Kolben der Spritze", "code": "e" },
