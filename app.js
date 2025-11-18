@@ -51,11 +51,53 @@ const connection = mysql.createConnection({
   database: 'in_the_wild_study'   // change to your database name
 })
 
-
 // GET endpoint to retrieve knowledge test configuration (objects and verbs)
 app.get('/knowledge-test-config', (req, res) => {
   res.json(knowledgeTestConfig.cardpool)
 })
+
+// Endpoint to create a new user
+app.get('/create-new-user', (req,res) => {
+  const query = 'INSERT INTO users () VALUES ()'
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Database error:', err)
+      return res.status(500).json({ error: 'Failed to insert data' })
+    }
+    res.status(201).json({ 
+      message: 'User created successfully',
+      user_id: results.insertId
+    })
+  })
+})
+
+// GET endpoint to retrieve a user by user_id
+app.get('/get-user', (req, res) => {
+  const user_id = req.query.user_id
+  
+  // Validate required field
+  if (user_id === undefined) {
+    return res.status(400).json({ 
+      error: 'Missing required field. Please provide: user_id' 
+    })
+  }
+  
+  const query = 'SELECT * FROM users WHERE user_id = ?'
+  connection.query(query, [user_id], (err, results) => {
+    if (err) {
+      console.error('Database error:', err)
+      return res.status(500).json({ error: 'Failed to retrieve user' })
+    }
+    
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    
+    res.status(200).json(results[0])
+  })
+})
+
+
 
 // Add this middleware to parse JSON requests
 
@@ -120,14 +162,38 @@ app.post('/knowledge-test-answer', (req, res) => {
 
   let totalError = levenshteinDamerauDistance / (0.5 * (jaccardSimilarityofObjects + jaccardSimilarityOfVerbs));
 
-  console.log('Total Error:', totalError)
-  res.status(201).json({ 
-    message: 'Knowledge test result received successfully',
-    totalError: totalError,
-    levenshteinDamerauDistance: levenshteinDamerauDistance,
-    jaccardSimilarityofObjects: jaccardSimilarityofObjects,
-    jaccardSimilarityOfVerbs: jaccardSimilarityOfVerbs
+  // Validate required field
+  if (user_id === undefined) {
+    return res.status(400).json({ 
+      error: 'Missing required field. Please provide: user_id' 
+    });
+  }
+
+  // Save results to database
+  const query = 'INSERT INTO knowledge_test_results (user_id, total_error, levenshtein_distance, jaccard_similarity_of_objects, jaccard_similarity_of_activities) VALUES (?, ?, ?, ?, ?)'
+  
+  connection.query(query, [
+    user_id, 
+    Math.round(totalError), 
+    levenshteinDamerauDistance, 
+    jaccardSimilarityofObjects, 
+    jaccardSimilarityOfVerbs
+  ], (err, results) => {
+    if (err) {
+      console.error('Database error:', err)
+      return res.status(500).json({ error: 'Failed to insert data' })
+    }
+    
+    console.log('Total Error:', totalError)
+    res.status(201).json({ 
+      message: 'Knowledge test result received successfully', 
+      totalError: totalError,
+      levenshteinDamerauDistance: levenshteinDamerauDistance,
+      jaccardSimilarityofObjects: jaccardSimilarityofObjects,
+      jaccardSimilarityOfVerbs: jaccardSimilarityOfVerbs
+    })
   })
+  
 })
 
 app.listen(port, () => {
