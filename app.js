@@ -180,8 +180,22 @@ app.post('/knowledge-test-answer', (req, res) => {
     jaccardSimilarityOfVerbs
   ], (err, results) => {
     if (err) {
+      if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+        // Error is caught and handled gracefully - no console.error for duplicate entries
+        console.log('Duplicate entry for user_id:', user_id)
+        return res.status(409).json({ 
+          error: 'A test result for this user already exists.',
+          errorCode: 'DUPLICATE_ENTRY',
+          details: err.sqlMessage
+        })
+      }
+      
+      // Other database errors
       console.error('Database error:', err)
-      return res.status(500).json({ error: 'Failed to insert data' })
+      return res.status(500).json({ 
+        error: 'Failed to insert data',
+        errorCode: 'DATABASE_ERROR'
+      })
     }
     
     console.log('Total Error:', totalError)
@@ -190,10 +204,9 @@ app.post('/knowledge-test-answer', (req, res) => {
       totalError: totalError,
       levenshteinDamerauDistance: levenshteinDamerauDistance,
       jaccardSimilarityofObjects: jaccardSimilarityofObjects,
-      jaccardSimilarityOfVerbs: jaccardSimilarityOfVerbs
+      jaccardSimilarityOfVerbs: jaccardSimilarityOfVerbs 
     })
   })
-  
 })
 
 app.listen(port, () => {
