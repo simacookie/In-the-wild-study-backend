@@ -103,12 +103,12 @@ app.get('/get-user', (req, res) => {
 
 // POST endpoint to create a new VR nugget result
 app.post('/vr-nugget-results', (req, res) => {
-  const { user_id, duration_in_seconds, number_of_errors, number_of_helps } = req.body
+  const { user_id, duration_in_seconds, number_of_errors, number_of_helps, error_stepnames, error_messages, help_stepnames} = req.body
   
   // Validate required fields
-  if (user_id === undefined|| duration_in_seconds === undefined || number_of_errors === undefined || number_of_helps === undefined) {
+  if (user_id === undefined|| duration_in_seconds === undefined || number_of_errors === undefined || number_of_helps === undefined || error_stepnames === undefined || error_messages === undefined || help_stepnames === undefined) {
     return res.status(400).json({ 
-      error: 'Missing required fields. Please provide: user_id, duration_in_seconds, number_of_errors, number_of_helps' 
+      error: 'Missing required fields. Please provide: user_id, duration_in_seconds, number_of_errors, number_of_helps, error_stepnames, error_messages, help_stepnames' 
     })
   }
   
@@ -116,14 +116,57 @@ app.post('/vr-nugget-results', (req, res) => {
   
   connection.query(query, [user_id, duration_in_seconds , number_of_errors, number_of_helps], (err, results) => {
     if (err) {
+      if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+        // Error is caught and handled gracefully - no console.error for duplicate entries
+        console.log('Duplicate entry for user_id:', user_id)
+        return res.status(409).json({ 
+          error: 'A test result for this user already exists.',
+          errorCode: 'DUPLICATE_ENTRY',
+          details: err.sqlMessage
+        })
+      }
+      // Other database errors
       console.error('Database error:', err)
-      return res.status(500).json({ error: 'Failed to insert data' })
+      return res.status(500).json({ 
+        error: 'Failed to insert data',
+        errorCode: 'DATABASE_ERROR'
+      })
     }
     
     res.status(201).json({ 
       message: 'VR nugget result created successfully',
     })
+
+      // Batch insert rows for each error_stepname with error_messages with the user_id
+  if (Array.isArray(error_stepnames) && error_stepnames.length > 0) {
+    const errorRows = error_stepnames.map((stepname, index) => [user_id, stepname, error_messages[index]]);
+    const errorsInsertQuery = 'INSERT INTO vr_nugget_user_errors (user_id, step_name, error_message) VALUES ?';
+    connection.query(errorsInsertQuery, [errorRows], (err, results) => {
+      if (err) {
+        console.error('Database error (user errors):', err);
+        // Optionally handle the error or respond here if desired
+      }
+      // Optionally handle success
+    });
+  }
+
+
+
+  // Batch insert rows for each help_stepname with the user_id
+  if (Array.isArray(help_stepnames) && help_stepnames.length > 0) {
+    const helpRows = help_stepnames.map(stepname => [user_id, stepname]);
+    const helpsInsertQuery = 'INSERT INTO vr_nugget_user_helps (user_id, step_name) VALUES ?';
+    connection.query(helpsInsertQuery, [helpRows], (err, results) => {
+      if (err) {
+        console.error('Database error (user helps):', err);
+        // Optionally handle the error or respond here if desired
+      }
+      // Optionally handle success
+    });
+  }
+
   })
+
 })
 
 // POST endpoint to submit knowledge test answer result
